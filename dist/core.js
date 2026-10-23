@@ -9,16 +9,31 @@ export function validAddress(value) {
  let bytes=0;for(;n>0n;n>>=8n)bytes++;
  return bytes+(value.match(/^1*/)?.[0].length||0)===32;
 }
-export function parseInput(value) {
- const s=value.trim(); if(validAddress(s))return {type:'address',value:s};
- try{const u=new URL(s);const parts=u.pathname.split('/').filter(Boolean);if(['solscan.io','explorer.solana.com'].includes(u.hostname)&&['token','address','account'].includes(parts[0])&&validAddress(parts[1]))return {type:'address',value:parts[1]};if(u.hostname==='dexscreener.com'&&parts[0]==='solana'&&validAddress(parts[1]))return {type:'pair',value:parts[1]};return {type:'unsupported'};}catch{}
- if(s.length>=2 && s.length<=80 && !/[<>\n\r]/.test(s))return {type:'search',value:s};return {type:'invalid'};
+export function websiteHost(value){
+ try{const u=new URL(value);if(!['https:','http:'].includes(u.protocol)||u.username||u.password||u.port)return '';const host=u.hostname.toLowerCase().replace(/^www\./,'').replace(/\.$/,'');if(!/^(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,63}$/.test(host)||/\.(?:local|internal|localhost|invalid|test|onion)$/.test(host))return '';return host;}catch{return '';}
 }
-export function primaryPair(pairs,address) {return (pairs||[]).filter(p=>p.chainId==='solana'&&p.baseToken?.address===address).sort((a,b)=>(Number(b.liquidity?.usd)||0)-(Number(a.liquidity?.usd)||0))[0]||null;}
+export function siteMatches(a,b){const x=websiteHost(a),y=websiteHost(b);return !!x&&!!y&&(x===y||x.endsWith('.'+y)||y.endsWith('.'+x));}
+export function parseInput(value) {
+ if(typeof value!=='string')return {type:'invalid'};
+ const s=value.trim();if(/^0x[0-9a-f]{40}$/i.test(s))return {type:'unsupported'};if(validAddress(s))return {type:'address',value:s};
+ const maybeUrl=/^https?:\/\//i.test(s)?s:/^[a-z0-9][a-z0-9.-]+\.[a-z]{2,}(?:[/?#].*)?$/i.test(s)?'https://'+s:null;
+ if(maybeUrl){
+  try{const u=new URL(maybeUrl),parts=u.pathname.split('/').filter(Boolean);if(!websiteHost(u.href))return {type:'unsupported'};
+   if(['solscan.io','explorer.solana.com'].includes(u.hostname)&&['token','address','account'].includes(parts[0])&&validAddress(parts[1])){if(u.searchParams.has('cluster')&&!['mainnet','mainnet-beta'].includes(u.searchParams.get('cluster')))return {type:'unsupported'};return {type:'address',value:parts[1]};}
+   if(u.hostname==='dexscreener.com'){if(parts[0]==='solana'&&validAddress(parts[1]))return {type:'pair',value:parts[1]};return {type:'unsupported'};}
+   const host=websiteHost(u.href);if(['x.com','twitter.com','t.me','discord.gg','github.com'].includes(host))return {type:'unsupported'};
+   return {type:'website',value:'https://'+host,host,query:(host.split('.').length>2&&['co','com','org','net'].includes(host.split('.').at(-2))?host.split('.').at(-3):host.split('.').at(-2))};
+  }catch{return {type:'unsupported'};}
+ }
+ if(/^[a-z][a-z0-9+.-]*:/i.test(s))return {type:'unsupported'};
+ const query=s.replace(/^\$/,'');if(query.length>=2&&query.length<=80&&!/[<>\n\r]/.test(query))return {type:'search',value:query};
+ return {type:'invalid'};
+}
+export function primaryPair(pairs,address) {return (Array.isArray(pairs)?pairs:[]).filter(p=>p.chainId==='solana'&&p.baseToken?.address===address).sort((a,b)=>(Number(b.liquidity?.usd)||0)-(Number(a.liquidity?.usd)||0))[0]||null;}
 export function assess(pair, chain, address, marketAvailable = true) {
  const info=chain?.value?.data?.parsed?.info; const isMint=chain?.value?.data?.parsed?.type==='mint';
  const checks=[];
- if(isMint && Object.hasOwn(info,'mintAuthority') && Object.hasOwn(info,'freezeAuthority')){
+ if(isMint && info && Object.hasOwn(info,'mintAuthority') && Object.hasOwn(info,'freezeAuthority')){
  checks.push({name:'Mint authority',status:info.mintAuthority?'caution':'pass',detail:info.mintAuthority?'An active mint authority can create additional supply.':'Mint authority is revoked. No authority can mint additional supply through this mint.',source:'Solana mainnet · getAccountInfo'});
  checks.push({name:'Freeze authority',status:info.freezeAuthority?'caution':'pass',detail:info.freezeAuthority?'An active freeze authority can freeze eligible token accounts.':'Freeze authority is revoked. This mint has no account-freezing authority.',source:'Solana mainnet · getAccountInfo'});
  if(chain.value.owner==='TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb') checks.push({name:'Token-2022 extensions',status:'unknown',detail:'This mint uses Token-2022. Transfer fees, hooks and other extensions need additional review.',source:'Solana mainnet · mint owner'});
@@ -30,7 +45,7 @@ export function assess(pair, chain, address, marketAvailable = true) {
  checks.push({name:'Pool history',status:age===null?'unknown':age<7?'caution':'pass',detail:age===null?'Pool creation date is unavailable.':`This pool was created ${Math.max(0,Math.floor(age))} days ago. ${age<7?'New pools have limited trading history.':'Pool age does not establish project legitimacy.'}`,source:'DEX Screener · pair creation'});
  const activity=pair.txns?.h24; const hasActivity=activity&&Number.isFinite(activity.buys)&&Number.isFinite(activity.sells); checks.push({name:'Trading activity',status:hasActivity?'info':'unknown',detail:hasActivity?`${activity.buys.toLocaleString('en-US')} buys and ${activity.sells.toLocaleString('en-US')} sells in the last 24 hours. This may include bots and wash trading.`:'Trading activity was not provided by the market source.',source:'DEX Screener · pool activity'});
  } else checks.push({name:'Indexed market data',status:marketAvailable?'caution':'unknown',detail:marketAvailable?'No matching base-token pools were returned by DEX Screener. Liquidity and trading activity are unverified.':'The market data service could not be reached. Liquidity and activity are unknown.',source:'DEX Screener · '+(marketAvailable?'no matching pools':'unavailable')});
- checks.push({name:'Team & product claims',status:'unknown',detail:'Identity, product functionality, social claims, holder concentration and liquidity locks are outside this automated check. Verify them independently.',source:'Manual review needed'});
+ checks.push({name:'Team & product claims',status:'unknown',detail:'Identity, product functionality, social claims, holder identities and liquidity locks are outside this automated check. Verify them independently.',source:'Manual review needed'});
  const flags=checks.filter(c=>c.status==='caution').length;
  const missing=checks.filter(c=>c.status==='unknown').length;
  return {checks,flags,missing,title:flags?`${flags} signal${flags===1?'':'s'} worth a closer look`:missing>1?'More evidence needed':'Core checks returned no flags',summary:flags?'Review the highlighted permissions and market signals before making a decision. These checks identify observable conditions, not whether a project is legitimate.':'Available permissions and pool data have been checked. Unverified claims and missing evidence still require your attention. This is not a safety rating.',address};
