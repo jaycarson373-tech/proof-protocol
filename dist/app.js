@@ -1,4 +1,4 @@
-import {SOL,CURATED,esc,safeUrl,validAddress,parseInput,primaryPair,assess,fetchJSON,rpc,money,pct,short,siteMatches} from './core.js';
+import {SOL,CURATED,esc,safeUrl,validAddress,parseInput,primaryPair,assess,fetchJSON,rpc,money,pct,short,siteMatches,websiteQueries} from './core.js';
 import {scoreEvidence} from './score.js';
 const paths={radar:'M12 3a9 9 0 1 0 9 9M12 7a5 5 0 1 0 5 5M12 12l8-8M16 3h5v5',files:'M8 3H4v14h3M10 7h10v14H10zM13 11h4M13 15h4',bookmark:'M6 3h12v18l-6-4-6 4V3Z',wallet:'M20 8V5H4a2 2 0 0 0 0 4h17v11H4a2 2 0 0 1-2-2V7M21 12h-6v4h6M17 14h.01',book:'M3 3h6a4 4 0 0 1 3 2 4 4 0 0 1 3-2h6v16h-6a4 4 0 0 0-3 2 4 4 0 0 0-3-2H3V3Zm9 2v16',search:'m21 21-5-5M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Z',sun:'M12 3V1m0 22v-2m9-9h2M1 12h2m15.4-6.4 1.4-1.4M4.2 19.8l1.4-1.4m12.8 0 1.4 1.4M4.2 4.2l1.4 1.4M17 12a5 5 0 1 1-10 0 5 5 0 0 1 10 0Z',moon:'M20.9 13A9 9 0 0 1 11 3.1 9 9 0 1 0 20.9 13Z',arrow:'M5 12h14m-6-6 6 6-6 6',external:'M14 3h7v7m0-7L10 14M10 3H3v18h18v-7',lock:'M5 10h14v11H5V10Zm3 0V7a4 4 0 0 1 8 0v3m-4 5v2',shield:'m12 2 9 4v6c0 5-9 10-9 10S3 17 3 12V6l9-4Zm-4 10 3 3 5-6',check:'m5 12 4 4L19 6',circlecheck:'M22 11v1a10 10 0 1 1-6-9M8 11l4 4L22 5',activity:'M3 12h4l3-9 4 18 3-9h4',chart:'M4 3v18h17M8 16l4-5 4 3 5-8',list:'M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01',grid:'M3 3h7v7H3zm11 0h7v7h-7zM3 14h7v7H3zm11 0h7v7h-7z',refresh:'M20 8a9 9 0 1 0 .5 8M20 3v6h-6',clock:'M12 8v5l3 2M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0Z',calendar:'M3 5h18v16H3zM7 2v6M17 2v6M3 11h18',code:'m8 7-5 5 5 5M16 7l5 5-5 5m-3-14-2 18',menu:'M3 6h18M3 12h18M3 18h18',x:'m6 6 12 12M6 18 18 6',copy:'M8 8h13v13H8zM16 8V3H3v13h5',download:'M12 3v12m-5-5 5 5 5-5M3 16v5h18v-5',trash:'M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7',warning:'m12 3 10 18H2L12 3Zm0 6v5m0 3h.01',info:'M12 11v6m0-10h.01M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0Z',globe:'M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0ZM2 12h20M12 2c6 6 6 14 0 20-6-6-6-14 0-20Z',bolt:'m13 2-9 12h7l-1 8 10-13h-7l0-7Z'};
 const icon=(name,cls='')=>`<svg class="icon ${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${paths[name]||paths.info}"/></svg>`;
@@ -72,10 +72,13 @@ async function searchPage(){
   if(parsed.type==='pair'){
    const data=await fetchJSON('https://api.dexscreener.com/latest/dex/pairs/solana/'+parsed.value);pairs=data.pairs||[];
   }else if(['website','search'].includes(parsed.type)){
-   const query=parsed.type==='website'?parsed.query:parsed.value;
-   const data=await fetchJSON('https://api.dexscreener.com/latest/dex/search?q='+encodeURIComponent(query));
-   pairs=data.pairs||[];
-   if(parsed.type==='website')pairs=pairs.filter(p=>(p.info?.websites||[]).some(w=>siteMatches(w.url,parsed.value)));
+   if(parsed.type==='website'){
+    const answers=await Promise.allSettled(websiteQueries(parsed).map(query=>fetchJSON('https://api.dexscreener.com/latest/dex/search?q='+encodeURIComponent(query))));
+    if(answers.every(a=>a.status==='rejected'))throw answers[0].reason;
+    pairs=answers.flatMap(a=>a.status==='fulfilled'&&Array.isArray(a.value.pairs)?a.value.pairs:[]).filter(p=>(p.info?.websites||[]).some(w=>siteMatches(w.url,parsed.value)));
+   }else{
+    const data=await fetchJSON('https://api.dexscreener.com/latest/dex/search?q='+encodeURIComponent(parsed.value));pairs=data.pairs||[];
+   }
   }else throw new Error('Use a project name, website or supported Solana token link.');
   if(renderEpoch!==epoch)return;
   const byAddress=new Map();

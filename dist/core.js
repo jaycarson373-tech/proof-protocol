@@ -13,6 +13,12 @@ export function websiteHost(value){
  try{const u=new URL(value);if(!['https:','http:'].includes(u.protocol)||u.username||u.password||u.port)return '';const host=u.hostname.toLowerCase().replace(/^www\./,'').replace(/\.$/,'');if(!/^(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,63}$/.test(host)||/\.(?:local|internal|localhost|invalid|test|onion)$/.test(host))return '';return host;}catch{return '';}
 }
 export function siteMatches(a,b){const x=websiteHost(a),y=websiteHost(b);return !!x&&!!y&&(x===y||x.endsWith('.'+y)||y.endsWith('.'+x));}
+export function websiteQueries(parsed){
+ const root=parsed.query||'';
+ const simplified=root.replace(/(?:coin|token|protocol|finance|network|labs|dao)$/i,'');
+ const withoutPrefix=root.replace(/^(?:get|join)/i,'');
+ return [...new Set([root,...(simplified.length>=2&&simplified!==root?[simplified]:[]),...(withoutPrefix.length>=2&&withoutPrefix!==root?[withoutPrefix]:[]),parsed.host])].filter(Boolean).slice(0,3);
+}
 export function parseInput(value) {
  if(typeof value!=='string')return {type:'invalid'};
  const s=value.trim();if(/^0x[0-9a-f]{40}$/i.test(s))return {type:'unsupported'};if(validAddress(s))return {type:'address',value:s};

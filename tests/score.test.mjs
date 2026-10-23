@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {scoreEvidence,accountConcentration} from '../dist/score.js';
-import {SOL,CURATED,parseInput,siteMatches,websiteHost} from '../dist/core.js';
+import {SOL,CURATED,parseInput,siteMatches,websiteHost,websiteQueries} from '../dist/core.js';
 const at='2026-10-23T12:00:00Z';
 function report(){return {address:SOL,at,chain:{context:{slot:123},value:{data:{parsed:{type:'mint',info:{mintAuthority:null,freezeAuthority:null,supply:'1000000'}}}}},largestAccounts:{context:{slot:124},value:[{address:CURATED[1],amount:'100000'}]},pair:{url:'https://dexscreener.com/solana/'+SOL,liquidity:{usd:2000000},pairCreatedAt:Date.parse(at)-200*86400000,txns:{h24:{buys:600,sells:500}},info:{websites:[{url:'https://jup.ag'}],socials:[{url:'https://x.com/jupiterexchange'}]}}};}
 test('fully observed reference checklist totals 100 with 100% coverage',()=>{const s=scoreEvidence(report());assert.equal(s.total,100);assert.equal(s.coverage,100);assert.equal(s.categories.reduce((n,c)=>n+c.max,0),100);});
@@ -20,3 +20,5 @@ test('unsafe links cannot earn project-link points',()=>{const r=report();r.pair
 test('project websites work with HTTPS, bare domains and subdomains',()=>{assert.equal(parseInput('jup.ag').type,'website');assert.equal(parseInput('https://app.jup.ag/swap').query,'jup');assert.equal(parseInput('https://project.co.uk').query,'project');assert.equal(siteMatches('https://www.jup.ag','https://app.jup.ag'),true);assert.equal(siteMatches('https://www.jup.ag','https://jup.ag'),true);assert.equal(siteMatches('https://docs.jup.ag','https://jup.ag'),true);});
 test('domain matches cannot be spoofed with lookalike suffixes or userinfo',()=>{assert.equal(siteMatches('https://jup.ag.evil.com','https://jup.ag'),false);assert.equal(websiteHost('https://jup.ag@evil.com'),'');assert.equal(websiteHost('https://localhost'),'');assert.equal(websiteHost('https://127.0.0.1'),'');assert.equal(parseInput('javascript:alert(1)').type,'unsupported');});
 test('other chains, test clusters and social links are not misidentified as mainnet projects',()=>{for(const input of ['0x'+'a'.repeat(40),'https://explorer.solana.com/address/'+SOL+'?cluster=devnet','https://x.com/jupiterexchange'])assert.equal(parseInput(input).type,'unsupported',input);assert.equal(parseInput('$BONK').value,'BONK');});
+
+test('website lookup can find a token when its domain adds coin or protocol',()=>{assert.deepEqual(websiteQueries(parseInput('bonkcoin.com')),['bonkcoin','bonk','bonkcoin.com']);assert(websiteQueries(parseInput('https://exampleprotocol.com')).includes('example'));assert(websiteQueries(parseInput('jup.ag')).includes('jup'));assert(websiteQueries(parseInput('https://getexample.com')).length<=3);});
