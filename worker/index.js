@@ -5,7 +5,7 @@ export function createWorker(assets={},transport=fetch,clock=Date.now){
  const verified=new Map(),cache=new Map(),pending=new Map(),limits=new Map();
  const json=(data,status=200,extra={})=>Response.json(data,{status,headers:{'cache-control':'no-store','x-content-type-options':'nosniff',...extra}});
  async function call(url,method,params){
-  const response=await transport(url,{method:'POST',redirect:'error',headers:{'content-type':'application/json'},body:JSON.stringify({jsonrpc:'2.0',id:1,method,params}),signal:AbortSignal.timeout(4000)});
+  const response=await transport(url,{method:'POST',redirect:'manual',headers:{'content-type':'application/json'},body:JSON.stringify({jsonrpc:'2.0',id:1,method,params}),signal:AbortSignal.timeout(4000)});
   if(!response.ok)throw Error('upstream unavailable');const data=await response.json();
   if(data.error||!Object.hasOwn(data,'result'))throw Error('upstream RPC error');return data.result;
  }
