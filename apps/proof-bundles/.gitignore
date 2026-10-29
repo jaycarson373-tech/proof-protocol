@@ -1,0 +1,14 @@
+node_modules/
+*.tar.gz
+.DS_Store
+.env*
+.openai/
+playwright-report/
+test-results/
+
+!.env.example
+*.bundle
+
+# This app ships browser source directly; the root app builds its own dist.
+!dist/
+!dist/**

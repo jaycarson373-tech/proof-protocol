@@ -2,6 +2,20 @@
 
 Simple Solana mainnet research. Enter a project website, name, ticker or Solana mint address. Choose the exact token, get a Proof score out of 100, inspect the evidence, save the report, and keep a watchlist.
 
+## Proof Bundles
+
+The companion bundle-research app is in [apps/proof-bundles](apps/proof-bundles/README.md). Basic transaction-pattern scans are free. Verified Pro holders unlock deeper native launch-window scans and CSV/JSON launch exports. The official holder mint and minimum balance must be configured before Pro access can be activated.
+
+Run it separately with Node 22:
+
+```sh
+cd apps/proof-bundles
+npm ci --ignore-scripts
+npm start
+```
+
+Use that folder as the deployment root or Docker build context. It needs a Node backend and its own HTTPS origin. The existing Proof Protocol deployment continues to use the root app. See the companion README for RPC coverage limits and server settings.
+
 ## Start locally
 
 Node.js 22 or newer. No packages, API keys or build step are required.

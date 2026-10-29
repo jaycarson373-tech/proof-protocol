@@ -1,0 +1,16 @@
+import {randomBytes,createPublicKey,verify} from 'node:crypto';
+import {validAddress} from '../dist/core.js';
+const alphabet='123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+export function publicKeyBytes(address){if(!validAddress(address))throw new Error('Invalid public key.');let n=0n;for(const char of address)n=n*58n+BigInt(alphabet.indexOf(char));const out=Buffer.alloc(32);for(let i=31;i>=0;i--){out[i]=Number(n&255n);n>>=8n;}return out;}
+export function minimumRaw(value,decimals){if(!Number.isInteger(decimals)||decimals<0||decimals>18||typeof value!=='string'||!/^\d+(?:\.\d+)?$/.test(value))throw new Error('Invalid holder threshold.');const [whole,part='']=value.split('.');if(part.length>decimals)throw new Error('Holder threshold exceeds mint precision.');const result=BigInt(whole)*10n**BigInt(decimals)+BigInt(part.padEnd(decimals,'0')||'0');if(result<=0n)throw new Error('Holder threshold must be positive.');return result;}
+export function holderBalance(accounts,wallet,mint){if(!Array.isArray(accounts?.value))throw new Error('Holder balances are unavailable.');return accounts.value.reduce((sum,a)=>{const info=a.account?.data?.parsed?.info;if(info?.owner!==wallet||info?.mint!==mint||(typeof info?.tokenAmount?.amount!=='string'||!/^\d+$/.test(info.tokenAmount.amount)))throw new Error('The RPC returned an invalid token account.');return sum+BigInt(info.tokenAmount.amount);},0n);}
+export function createAuth({origin,clock=()=>Date.now()}){
+ const challenges=new Map(),sessions=new Map();
+ const cleanup=()=>{for(const [k,v]of challenges)if(v.until<=clock())challenges.delete(k);for(const [k,v]of sessions)if(v.until<=clock())sessions.delete(k);};
+ return {
+  challenge(wallet){cleanup();if(!validAddress(wallet))throw new Error('Invalid wallet.');if(challenges.size>1000)throw new Error('Authentication is busy.');const id=randomBytes(24).toString('base64url');const until=clock()+120000;const message=`Proof Bundles holder verification\nOrigin: ${origin}\nWallet: ${wallet}\nNonce: ${id}\nExpires: ${new Date(until).toISOString()}\n\nThis is a login message only. It does not approve tokens or authorize a transaction.`;challenges.set(id,{wallet,message,until});return {id,message,expiresAt:new Date(until).toISOString()};},
+  verify({id,wallet,signature}){cleanup();const challenge=challenges.get(id);challenges.delete(id);if(!challenge||challenge.until<=clock()||challenge.wallet!==wallet)throw new Error('Challenge expired or already used.');if(typeof signature!=='string'||!/^[A-Za-z0-9+/]+={0,2}$/.test(signature))throw new Error('Invalid signature.');const bytes=Buffer.from(signature,'base64');if(bytes.length!==64)throw new Error('Invalid signature.');const key=createPublicKey({key:Buffer.concat([Buffer.from('302a300506032b6570032100','hex'),publicKeyBytes(wallet)]),format:'der',type:'spki'});if(!verify(null,Buffer.from(challenge.message),key,bytes))throw new Error('Wallet ownership could not be verified.');const session=randomBytes(32).toString('base64url');sessions.set(session,{wallet,until:clock()+600000});return {session,wallet,expiresAt:new Date(clock()+600000).toISOString()};},
+  session(value){cleanup();const found=sessions.get(value);return found&&found.until>clock()?found:null;},
+  revoke(value){sessions.delete(value);}
+ };
+}

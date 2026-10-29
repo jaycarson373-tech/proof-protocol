@@ -1,0 +1,2 @@
+import {generateKeyPairSync,sign} from 'node:crypto';
+export function testWallet(){const keys=generateKeyPairSync('ed25519');const bytes=keys.publicKey.export({format:'der',type:'spki'}).subarray(-32);const alphabet='123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';let n=BigInt('0x'+bytes.toString('hex')),address='';for(;n>0n;n/=58n)address=alphabet[Number(n%58n)]+address;for(const b of bytes){if(b!==0)break;address='1'+address;}return {address,sign:message=>sign(null,Buffer.from(message),keys.privateKey).toString('base64')};}
