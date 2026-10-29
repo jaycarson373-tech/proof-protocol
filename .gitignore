@@ -2,6 +2,6 @@ node_modules/
 *.tar.gz
 .DS_Store
 .env*
-.openai/
-playwright-report/
-test-results/
+
+dist/
+outputs/

@@ -17,7 +17,7 @@ npm run check
 npm test
 ```
 
-The production application is the `dist/` directory. Deploy it to any static HTTPS host. Hash routes make bookmarked report links work without server-side routing.
+The production application is a self-contained Cloudflare Worker in `dist/server/index.js`. Run `npm run build` before packaging; it embeds the original UI and a read-only server RPC gateway. Hash routes make bookmarked report links work without server-side routing.
 
 ## What works
 
@@ -47,7 +47,7 @@ Public endpoints:
 - `https://api.mainnet-beta.solana.com`
 - `https://solana-rpc.publicnode.com`
 
-Requests originate in the visitor's browser. No wallet connection, sign-in or token holding is needed to scan. Public APIs can apply per-IP quotas. DEX data describes the selected largest indexed base-token pool, not the aggregate market. Liquidity below USD 100,000 and a pool younger than seven days are research flags. They are not a scam diagnosis. Missing evidence is marked unknown; no flags is not a safety verdict.
+Market requests originate in the visitor's browser. On-chain requests use the same-origin `/api/rpc` server gateway. It verifies the mainnet genesis, uses finalized reads, validates mint ownership and response shapes, caches for 15 seconds, coalesces duplicate requests and applies a best-effort per-isolate IP limit. Optional `SOLANA_RPC_URL` stays server-only. No wallet connection, sign-in or token holding is needed to scan. Public APIs can apply per-IP quotas. DEX data describes the selected largest indexed base-token pool, not the aggregate market. Liquidity below USD 100,000 and a pool younger than seven days are research flags. They are not a scam diagnosis. Missing evidence is marked unknown; no flags is not a safety verdict.
 
 Reports are deterministic checks, not AI audits. Team identities, product claims, unique holder identities, liquidity locks, Token-2022 extensions and contract source code require additional review. Public APIs can be rate limited, unavailable or delayed. Use a dedicated RPC/indexer and capacity monitoring for a commercial launch with significant traffic.
 
@@ -55,11 +55,11 @@ Website matching only uses indexed links. It does not fetch or execute project s
 
 ## Source layout
 
-- `dist/index.html`: brand, navigation and document metadata
-- `dist/app.js`: UI, wallet connection and browser library
-- `dist/core.js`: project/address parsing, evidence rules and source requests
-- `dist/score.js`: score model v1 and raw-account concentration arithmetic
-- `dist/styles.css`: responsive interface
+- `public/index.html`: brand, navigation and document metadata
+- `public/app.js`: UI, wallet connection and browser library
+- `public/core.js`: project/address parsing, evidence rules and source requests
+- `public/score.js`: score model v1 and raw-account concentration arithmetic
+- `public/styles.css`: responsive interface
 - `scripts/serve.mjs`: local preview server
 - `tests/core.test.mjs`: meaningful evidence and input checks
 - `.github/workflows/check.yml`: automatic syntax and logic checks
@@ -79,3 +79,7 @@ Website matching only uses indexed links. It does not fetch or execute project s
 Unknown categories earn zero points and remain in the 100-point denominator. Coverage is the combined weight of categories with usable data. Below 70% coverage, the label is **Incomplete evidence**. At sufficient coverage, ≥80 points is **More supporting signals**, ≥50 is **Mixed signals**, and below 50 is **Limited supporting signals**. These are checklist labels, not safety, legitimacy, or investment ratings.
 
 The score uses each report's captured timestamp, so old snapshots do not improve merely by being reopened later. All formulas are disclosed in the app's methodology. Tests cover outage handling, unknown inputs, exact boundaries, source-link filtering, domain lookalikes and integer-safe balance arithmetic.
+
+## October 29 release
+
+40 tests pass, including wrong-cluster rejection, malformed mint evidence, write-method rejection, bounded input, request coalescing and provider outage handling. The app can scan without a wallet or token. Public RPC services can still omit largest-account evidence; an unavailable category remains unknown and earns no points. A dedicated production provider can be set server-side for sustained traffic. No development proxy, signing method or project wallet secret is used.

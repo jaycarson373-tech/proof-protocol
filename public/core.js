@@ -58,9 +58,9 @@ export function assess(pair, chain, address, marketAvailable = true) {
 }
 export async function fetchJSON(url,options={}) {const res=await fetch(url,{...options,signal:options.signal||AbortSignal.timeout(15000)});if(!res.ok)throw new Error(res.status===429?'The data source is rate limiting requests. Please try again shortly.':`The data source returned HTTP ${res.status}.`);return res.json();}
 export async function rpc(method,params) {
- let failure;
- for(const url of ['https://api.mainnet-beta.solana.com','https://solana-rpc.publicnode.com']){try{const data=await fetchJSON(url,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({jsonrpc:'2.0',id:1,method,params}),signal:AbortSignal.timeout(8000)});if(data.error)throw new Error(data.error.message);return data.result;}catch(e){failure=e;}}
- throw failure;
+ const data=await fetchJSON('/api/rpc',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({method,params}),signal:AbortSignal.timeout(18000)});
+ if(data.error)throw new Error(data.error.message||'Mainnet evidence is temporarily unavailable.');
+ return data.result;
 }
 export function money(value,compact=false) {if(value===null||value===undefined||!Number.isFinite(Number(value)))return '—';const n=Number(value);if(compact&&n>=1000)return '$'+new Intl.NumberFormat('en-US',{notation:'compact',maximumFractionDigits:2}).format(n);if(n===0)return '$0.00';if(n<.01)return '$'+n.toLocaleString('en-US',{maximumSignificantDigits:4});return '$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:n<1?4:2});}
 export function pct(value) {const n=Number(value);return Number.isFinite(n)&&value!=null?(n>=0?'+':'')+n.toFixed(2)+'%':'—';}

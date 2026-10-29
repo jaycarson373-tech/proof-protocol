@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {scoreEvidence,accountConcentration} from '../dist/score.js';
-import {SOL,CURATED,parseInput,siteMatches,websiteHost,websiteQueries} from '../dist/core.js';
+import {scoreEvidence,accountConcentration} from '../public/score.js';
+import {SOL,CURATED,parseInput,siteMatches,websiteHost,websiteQueries} from '../public/core.js';
 const at='2026-10-23T12:00:00Z';
 function report(){return {address:SOL,at,chain:{context:{slot:123},value:{data:{parsed:{type:'mint',info:{mintAuthority:null,freezeAuthority:null,supply:'1000000'}}}}},largestAccounts:{context:{slot:124},value:[{address:CURATED[1],amount:'100000'}]},pair:{url:'https://dexscreener.com/solana/'+SOL,liquidity:{usd:2000000},pairCreatedAt:Date.parse(at)-200*86400000,txns:{h24:{buys:600,sells:500}},info:{websites:[{url:'https://jup.ag'}],socials:[{url:'https://x.com/jupiterexchange'}]}}};}
 test('fully observed reference checklist totals 100 with 100% coverage',()=>{const s=scoreEvidence(report());assert.equal(s.total,100);assert.equal(s.coverage,100);assert.equal(s.categories.reduce((n,c)=>n+c.max,0),100);});

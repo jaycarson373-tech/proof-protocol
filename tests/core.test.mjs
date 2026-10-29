@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {validAddress,parseInput,primaryPair,assess,safeUrl,esc,SOL,CURATED} from '../dist/core.js';
+import {validAddress,parseInput,primaryPair,assess,safeUrl,esc,SOL,CURATED} from '../public/core.js';
 const chain=(mint=null,freeze=null)=>({value:{owner:'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA',data:{parsed:{type:'mint',info:{mintAuthority:mint,freezeAuthority:freeze}}}}});
 const pair=(liquidity=200000,age=30)=>({chainId:'solana',baseToken:{address:SOL},liquidity:{usd:liquidity},pairCreatedAt:Date.now()-age*86400000,txns:{h24:{buys:15,sells:7}}});
 test('curated mint addresses decode to exactly 32 bytes',()=>CURATED.forEach(a=>assert.equal(validAddress(a),true,a)));

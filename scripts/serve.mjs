@@ -1,24 +1,8 @@
 import http from 'node:http';
-import {createReadStream} from 'node:fs';
-import {stat} from 'node:fs/promises';
-import path from 'node:path';
-import {fileURLToPath} from 'node:url';
-
-const root=fileURLToPath(new URL('../dist/',import.meta.url));
-const port=Number(process.env.PORT||process.argv[2]||3000);
-const mime={'.html':'text/html; charset=utf-8','.js':'application/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.svg':'image/svg+xml','.json':'application/json'};
-const server=http.createServer(async(req,res)=>{
- try {
-  if(!['GET','HEAD'].includes(req.method)){res.writeHead(405,{'Allow':'GET, HEAD'});res.end();return;}
-  const pathname=decodeURIComponent(new URL(req.url,'http://localhost').pathname);
-  let file=path.resolve(root,'.'+pathname);
-  const relative=path.relative(root,file);
-  if(relative.startsWith('..')||path.isAbsolute(relative)){res.writeHead(403);res.end('Forbidden');return;}
-  if(pathname==='/'||!path.extname(pathname))file=path.join(root,'index.html');
-  const info=await stat(file);
-  if(!info.isFile())throw new Error('not a file');
-  res.writeHead(200,{'Content-Type':mime[path.extname(file)]||'application/octet-stream','Content-Length':info.size,'X-Content-Type-Options':'nosniff','Cache-Control':'no-store'});
-  if(req.method==='HEAD')res.end();else createReadStream(file).on('error',()=>res.destroy()).pipe(res);
- } catch {res.writeHead(404);res.end('Not found');}
-});
-server.listen(port,'127.0.0.1',()=>console.log(`Proof Protocol preview: http://127.0.0.1:${port}`));
+import {readFile,readdir} from 'node:fs/promises';
+import {createWorker} from '../worker/index.js';
+const root=new URL('../public/',import.meta.url),assets={};
+const types={html:'text/html',js:'application/javascript',css:'text/css',svg:'image/svg+xml'};
+for(const name of await readdir(root))assets['/'+name]={body:await readFile(new URL(name,root),'utf8'),type:types[name.split('.').at(-1)]||'application/json'};
+const worker=createWorker(assets),port=Number(process.env.PORT||3000);
+http.createServer(async(req,res)=>{try{const chunks=[];for await(const c of req)chunks.push(c);const body=Buffer.concat(chunks);const request=new Request('http://127.0.0.1:'+port+req.url,{method:req.method,headers:req.headers,...(body.length?{body}: {})});const response=await worker.fetch(request,{SOLANA_RPC_URL:process.env.SOLANA_RPC_URL});res.writeHead(response.status,Object.fromEntries(response.headers));res.end(Buffer.from(await response.arrayBuffer()));}catch{res.writeHead(500);res.end('Request failed');}}).listen(port,'127.0.0.1',()=>console.log('Proof Protocol preview: http://127.0.0.1:'+port));
