@@ -1,0 +1,12 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {executionEvidence,executionSummary} from '../dist/bundle-tech.js';
+import {summarizeBundles} from '../dist/bundles.js';
+import {SOL} from '../dist/core.js';
+const alphabet='123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+const encode=bytes=>{let n=0n;for(const b of bytes)n=n*256n+BigInt(b);let s='';while(n){s=alphabet[Number(n%58n)]+s;n/=58n;}for(const b of bytes){if(b)break;s='1'+s;}return s;};
+const tx=()=>({slot:12,blockIndex:0,transaction:{signatures:['fixture-signature'],message:{accountKeys:[{pubkey:SOL,signer:true}],instructions:[]}},meta:{err:null,fee:5000,computeUnitsConsumed:1400}});
+test('execution evidence decodes an exact u64 priority price without unsafe numeric rounding',()=>{const t=tx();t.transaction.message.instructions=[{programId:'ComputeBudget111111111111111111111111111111',data:encode([3,255,255,255,255,255,255,255,255])},{programId:'ComputeBudget111111111111111111111111111111',data:encode([2,64,13,3,0])}];const r=executionEvidence(t);assert.equal(r.priorityFeeMicroLamports,'18446744073709551615');assert.equal(r.computeUnitLimit,200000);assert.equal(r.feeLamports,5000);assert.equal(r.blockIndex,0);});
+test('wrong programs, malformed bytes, and unavailable execution data never become priority or bundle proof',()=>{const t=tx();t.transaction.message.instructions=[{programId:SOL,data:encode([3,1,0,0,0,0,0,0,0])},{programId:'ComputeBudget111111111111111111111111111111',data:'invalid0'},{programId:'ComputeBudget111111111111111111111111111111',data:encode([3,1])}];delete t.blockIndex;assert.equal(executionEvidence(t).priorityFeeMicroLamports,null);assert.equal(executionEvidence(t).blockIndex,null);assert.equal(executionSummary([t,t]).transactions.length,1);assert.equal(executionSummary([t]).jitoBundleProof,false);});
+test('failed or missing execution metadata cannot supply fees or priority evidence',()=>{const failed=tx();failed.meta.err={InstructionError:[0,'Invalid']};assert.equal(executionEvidence(failed),null);delete failed.meta;assert.equal(executionEvidence(failed),null);});
+test('sample reports retain execution evidence independently of same-slot groups',()=>{const r=summarizeBundles([tx()],SOL);assert.equal(r.groups.length,0);assert.equal(r.execution.transactions.length,1);assert.equal(r.confirmedBundle,false);});

@@ -1,4 +1,5 @@
 import {validAddress} from './core.js';
+import {executionSummary} from './bundle-tech.js';
 const publicKey=k=>typeof k==='string'?k:k?.pubkey;
 const raw=n=>typeof n==='string'&&/^\d+$/.test(n)?BigInt(n):null;
 export function initializesMint(transaction,mint){
@@ -6,7 +7,7 @@ export function initializesMint(transaction,mint){
  return !!transaction?.meta&&transaction.meta.err===null&&instructions.some(i=>['spl-token','spl-token-2022'].includes(i.program)&&['initializeMint','initializeMint2'].includes(i.parsed?.type)&&i.parsed.info?.mint===mint);
 }
 export function acquisitionEvidence(transaction,mint){
- if(!transaction||!transaction.meta||!transaction.transaction?.message||transaction.meta.err||!Number.isSafeInteger(transaction.slot))return null;
+ if(!transaction||!transaction.meta||!transaction.transaction?.message||transaction.meta.err!==null||!Number.isSafeInteger(transaction.slot))return null;
  const keys=transaction.transaction?.message?.accountKeys||[];
  const required=transaction.transaction?.message?.header?.numRequiredSignatures||0;
  const signers=new Set(keys.filter((k,i)=>typeof k==='object'?k.signer===true:i<required).map(publicKey));
@@ -36,7 +37,7 @@ export function summarizeBundles(transactions,mint,meta={}){
  for(const item of evidence)for(const transfer of item.transfers){if(!groupOwners.has(transfer.destination)||transfer.source===transfer.destination)continue;const f=funding.get(transfer.source)||{source:transfer.source,destinations:new Set(),transfers:[]};f.destinations.add(transfer.destination);f.transfers.push(transfer);funding.set(f.source,f);}
  const sharedTransfers=[...funding.values()].filter(f=>f.destinations.size>=2).map(f=>({...f,destinations:[...f.destinations]}));
  const knownTimes=evidence.map(t=>t.blockTime).filter(Number.isFinite);
- return {schema:1,mint,scannedAt:new Date().toISOString(),mode:'sampled-rpc',classification:groups.length?'Patterns observed':'No pattern observed in sample',confirmedBundle:false,groups,sharedTransfers,coverage:{requested:meta.requested??transactions.length,returned:transactions.filter(Boolean).length,analyzed:evidence.length,failed:transactions.length-evidence.length,acquisitionTransactions:evidence.filter(t=>t.gains.length).length,unattributedBalances:evidence.reduce((n,t)=>n+t.unattributed,0),firstTime:knownTimes.length?Math.min(...knownTimes):null,lastTime:knownTimes.length?Math.max(...knownTimes):null,scope:meta.anchor?'anchor-slot transaction sample':'recent mint-address transaction sample',anchor:meta.anchor||null,launchVerified:meta.launchVerified===true},limitations:['A same-slot pattern does not prove a Jito bundle or common ownership.','This samples transactions referencing the mint. It is not a complete launch, holder or funding history.','Positive balance changes are acquisitions, not necessarily purchases. Only recipient owners signing the transaction are counted.','Common transfers shown here were observed inside this sample; no root-funder attribution is made.','Zero patterns in a sample is not evidence of an unbundled launch.']};
+ return {schema:1,mint,scannedAt:new Date().toISOString(),mode:'sampled-rpc',classification:groups.length?'Patterns observed':'No pattern observed in sample',confirmedBundle:false,groups,sharedTransfers,execution:executionSummary(transactions),coverage:{requested:meta.requested??transactions.length,returned:transactions.filter(Boolean).length,analyzed:evidence.length,failed:transactions.length-evidence.length,acquisitionTransactions:evidence.filter(t=>t.gains.length).length,unattributedBalances:evidence.reduce((n,t)=>n+t.unattributed,0),firstTime:knownTimes.length?Math.min(...knownTimes):null,lastTime:knownTimes.length?Math.max(...knownTimes):null,scope:meta.anchor?'anchor-slot transaction sample':'recent mint-address transaction sample',anchor:meta.anchor||null,launchVerified:meta.launchVerified===true},limitations:['A same-slot pattern does not prove a Jito bundle or common ownership.','This samples transactions referencing the mint. It is not a complete launch, holder or funding history.','Positive balance changes are acquisitions, not necessarily purchases. Only recipient owners signing the transaction are counted.','Common transfers shown here were observed inside this sample; no root-funder attribution is made.','Zero patterns in a sample is not evidence of an unbundled launch.']};
 }
 export function normalizeIndexedReport(data,mint){
  const launch=data?.launch;

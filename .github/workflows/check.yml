@@ -12,6 +12,7 @@ jobs:
           node-version: '22'
       - run: npm run check
       - run: npm test
+      - run: npm run build:vercel
   bundles:
     runs-on: ubuntu-latest
     defaults:

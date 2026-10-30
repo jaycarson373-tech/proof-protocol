@@ -2,6 +2,15 @@
 
 A separate app derived from Proof Protocol, with Solana transaction-pattern evidence and holder-verified Pro research. The original Proof Protocol app and repository are unchanged.
 
+## New in 1.3
+
+- Fresh token reports automatically run a free basic bundle scan; reopening a saved snapshot does not silently rescan.
+- Bundle tech explains same-slot patterns, observed shared sources, transaction fees, declared priority prices, and why these do not establish a Jito bundle.
+- Execution records preserve exact u64 priority prices and available zero-based block positions; older snapshots show “not collected” until refreshed.
+- Mainnet RPC endpoints are checked against the Solana mainnet genesis hash before native evidence or holder reads.
+- A Vercel adapter serves the app at `/bundles/` in the existing repository deployment. Browser mint and balance reads use the same-origin server gateway.
+- Optional shared Redis REST storage supports one-use login nonces, sessions, protected report IDs and rate limits across instances. Pro fails closed on serverless hosts without shared storage; free scans remain usable.
+
 ## New in 1.2: our own launch engine
 
 Gatekept is **not required** for the primary Pro feature. The native engine reads Solana RPC directly and does not call a third-party bundle-analysis API.
@@ -60,6 +69,8 @@ Set these in the deployment host's environment settings. `.env.example` lists th
 | `HOLDER_MIN_TOKENS` | Holder Pro | Positive decimal number of tokens, supplied by the owner; converted using mainnet mint decimals. |
 | `SOLANA_RPC_URL` | Mainnet transaction / holder data | A dedicated archival Solana mainnet HTTP RPC is recommended. Default: `https://api.mainnet-beta.solana.com` with public-node fallback. URLs containing API keys are secrets. |
 | `GATEKEPT_API_KEY` | Optional legacy comparison only | Not needed for native Pro scans. An authorized key with credits enables only the explicitly called legacy `/api/bundles/indexed` adapter. |
+| `STATE_REDIS_REST_URL` | Pro on serverless / multiple instances | HTTPS Redis REST endpoint supporting `GETDEL`, `SET EX`, and `EVAL` (e.g. Upstash). |
+| `STATE_REDIS_REST_TOKEN` | Shared storage | Server-only REST access token; never expose in browser assets. |
 | `NODE_ENV` | Production | `production`; requires HTTPS `APP_ORIGIN`. |
 | `HOST` | Container/server binding | `0.0.0.0` in a container; local default `127.0.0.1`. |
 | `PORT` | Server | Default `3000`. Match the public origin/proxy configuration. |
@@ -107,7 +118,7 @@ The documented endpoint costs **5 credits per successful uncached read** (the do
 
 Threshold arithmetic and raw token balances use BigInt. Multiple owned token accounts are summed. Mint/owner mismatches are rejected. Frozen, delegated or protocol-owned balances are not a promise of economic ownership beyond the RPC's token-account owner field.
 
-Challenges, sessions, report IDs, caches and abuse counters are process-local. This is a **single-instance server**. Restarts require signing in again. Multiple instances or higher traffic need shared state/rate limiting before a scaled launch. Holder messages and access checks have automated cryptographic/API tests; an actual eligible holder wallet has not been verified without the owner's mint and threshold.
+With `STATE_REDIS_REST_URL` and `STATE_REDIS_REST_TOKEN`, login nonces, sessions, report IDs and bundle API rate limits use shared TTL storage scoped to the application origin. Nonces are consumed atomically with `GETDEL`; every export still rechecks holdings. Without shared storage, standalone Node uses process-local state and is single-instance only; restarts require signing in again. Serverless hosts disable holder access without shared storage. Native read caches and scanner concurrency remain process-local. High traffic also needs provider capacity and platform-level abuse controls. Holder messages and access checks have automated cryptographic/API tests; an actual eligible holder wallet has not been verified without the owner's mint and threshold.
 
 ## API
 
@@ -133,10 +144,10 @@ npm test
 npm run check
 ```
 
-Tests cover the retained Proof score, grouping false positives, raw integer balances, verified mint initialization, bounded native discovery, partial launch windows, funding evidence, missing metadata, provider mismatches, signed-message replay/expiry, balance thresholds, API access, CSRF and protected exports. GitHub Actions installs locked dependencies and runs these checks.
+Tests cover exact execution evidence, cross-instance login/nonce consumption/export/logout, shared storage failures, serverless access controls, the retained Proof score, grouping false positives, raw integer balances, verified mint initialization, bounded native discovery, partial launch windows, funding evidence, missing metadata, provider mismatches, signed-message replay/expiry, balance thresholds, API access, CSRF and protected exports. GitHub Actions installs locked dependencies and runs these checks.
 
 ## Deploy
 
 This version requires a Node backend; uploading only `dist/` to a static host will not provide holder access or bundle endpoints. A Node container definition is included. Set the environment variables above on a host supporting Node 22, persistent process-local service and HTTPS. No deployment platform credentials are embedded.
 
-This app is included in the existing `jaycarson373-tech/proof-protocol` repository at `apps/proof-bundles/`. Deploy with that folder as the service root (or Docker build context). It requires its own Node service and HTTPS origin; adding the folder does not deploy it to the existing Proof Protocol host. Saved reports and watchlists start empty in this app's separate `proofbundles.` browser namespace.
+This app is included in the existing `jaycarson373-tech/proof-protocol` repository at `apps/proof-bundles/`. Deploy with that folder as the service root (or Docker build context). The root `vercel.json` builds both apps and serves this app at `/bundles/` with a Node API function. For a standalone service, use this folder as its root and set an exact HTTPS `APP_ORIGIN`. No dedicated RPC, holder policy or Redis credentials are embedded. Saved reports and watchlists start empty in this app's separate `proofbundles.` browser namespace.

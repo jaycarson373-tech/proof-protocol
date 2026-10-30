@@ -1,0 +1,9 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": null,
+  "buildCommand": "node scripts/build-vercel.mjs",
+  "outputDirectory": "vercel-output",
+  "functions": {"api/[...path].js": {"maxDuration": 180}},
+  "redirects": [{"source": "/bundles", "destination": "/bundles/", "permanent": false}],
+  "rewrites": [{"source": "/bundles/", "destination": "/bundles/index.html"}]
+}

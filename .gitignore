@@ -7,3 +7,6 @@ dist/
 outputs/
 
 !apps/proof-bundles/.env.example
+
+vercel-output/
+.vercel/

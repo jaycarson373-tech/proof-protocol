@@ -4,11 +4,11 @@ import {summarizeBundles,normalizeIndexedReport,initializesMint} from '../dist/b
 import {minimumRaw,holderBalance} from './auth.mjs';
 export class ApiError extends Error{constructor(status,code,message){super(message);Object.assign(this,{status,code});}}
 export function createServices(config,{fetcher=fetch}={}){
- let rpcId=0;const cache=new Map(),inFlight=new Map();let active=0;const budget=[];
+ const verifiedEndpoints=new Map();let rpcId=0;const cache=new Map(),inFlight=new Map();let active=0;const budget=[];
  const rpc=async(method,params)=>{
   const endpoints=config.rpcUrl==='https://api.mainnet-beta.solana.com'?[config.rpcUrl,'https://solana-rpc.publicnode.com']:[config.rpcUrl];
   for(const endpoint of endpoints){
-   try{const r=await fetcher(endpoint,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({jsonrpc:'2.0',id:++rpcId,method,params}),signal:AbortSignal.timeout(5000)});if(!r.ok)continue;const j=await r.json();if(j.error||j.result===undefined)continue;return j.result;}catch{}
+   try{if((verifiedEndpoints.get(endpoint)||0)<Date.now()){const g=await fetcher(endpoint,{method:'POST',redirect:'error',headers:{'content-type':'application/json'},body:JSON.stringify({jsonrpc:'2.0',id:++rpcId,method:'getGenesisHash',params:[]}),signal:AbortSignal.timeout(5000)});if(!g.ok||(await g.json()).result!=='5eykt4UsFv8P8NJdTREpY1vzqKqZKvdpKuc147dw2N9d')continue;verifiedEndpoints.set(endpoint,Date.now()+300000);}const r=await fetcher(endpoint,{method:'POST',redirect:'error',headers:{'content-type':'application/json'},body:JSON.stringify({jsonrpc:'2.0',id:++rpcId,method,params}),signal:AbortSignal.timeout(5000)});if(!r.ok)continue;const j=await r.json();if(j.error||j.result===undefined)continue;return j.result;}catch{}
   }
   throw new ApiError(503,'RPC_UNAVAILABLE','The Solana RPC could not return this data. Retry shortly or configure a dedicated SOLANA_RPC_URL.');
  };
@@ -38,7 +38,7 @@ export function createServices(config,{fetcher=fetch}={}){
     if(!mentionsMint)throw new ApiError(400,'ANCHOR_MINT_MISMATCH','The anchor does not contain evidence for this mint.');
     const block=await rpc('getBlock',[anchored.slot,{encoding:'jsonParsed',transactionDetails:'full',rewards:false,maxSupportedTransactionVersion:0,commitment:'confirmed'}]);
     if(!Array.isArray(block?.transactions))throw new ApiError(503,'ANCHOR_BLOCK_UNAVAILABLE','The RPC could not return the anchor block. An archival RPC may be needed.');
-    const matching=block.transactions.filter(t=>!t.meta?.err&&[...(t.meta?.preTokenBalances||[]),...(t.meta?.postTokenBalances||[])].some(b=>b.mint===mint));
+    const matching=block.transactions.map((t,blockIndex)=>({...t,blockIndex})).filter(t=>!t.meta?.err&&[...(t.meta?.preTokenBalances||[]),...(t.meta?.postTokenBalances||[])].some(b=>b.mint===mint));
     examined=block.transactions.length;available=matching.length;transactions=matching.slice(0,12).map(t=>({...t,slot:anchored.slot,blockTime:block.blockTime??anchored.blockTime??null}));requested=transactions.length;launchVerified=initializesMint(anchored,mint);
    }else{
     const list=await rpc('getSignaturesForAddress',[mint,{limit:60}]);

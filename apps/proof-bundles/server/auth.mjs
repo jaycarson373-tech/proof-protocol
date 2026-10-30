@@ -14,3 +14,22 @@ export function createAuth({origin,clock=()=>Date.now()}){
   revoke(value){sessions.delete(value);}
  };
 }
+
+// Durable variant for multiple Node instances and serverless cold starts.
+export function createSharedAuth({origin,store,clock=()=>Date.now()}){
+ const local=createAuth({origin,clock});
+ return {
+  async challenge(wallet){const c=local.challenge(wallet);await store.put('challenge:'+c.id,{...c,wallet,until:clock()+120000},120);return c;},
+  async verify(proof){
+   if(typeof proof?.id!=='string'||proof.id.length>100)throw Error('Invalid challenge.');
+   const c=await store.take('challenge:'+proof.id);
+   if(!c||c.until<=clock()||c.wallet!==proof.wallet||typeof proof.signature!=='string'||!/^[A-Za-z0-9+/]+={0,2}$/.test(proof.signature))throw Error('Challenge expired or already used.');
+   const bytes=Buffer.from(proof.signature,'base64');if(bytes.length!==64)throw Error('Invalid signature.');
+   const key=createPublicKey({key:Buffer.concat([Buffer.from('302a300506032b6570032100','hex'),publicKeyBytes(proof.wallet)]),format:'der',type:'spki'});
+   if(!verify(null,Buffer.from(c.message),key,bytes))throw Error('Wallet ownership could not be verified.');
+   const session=randomBytes(32).toString('base64url');const until=clock()+600000;await store.put('session:'+session,{wallet:proof.wallet,until},600);return {session,wallet:proof.wallet,expiresAt:new Date(until).toISOString()};
+  },
+  async session(value){if(!/^[A-Za-z0-9_-]{43}$/.test(value||''))return null;const s=await store.get('session:'+value);return s&&s.until>clock()?s:null;},
+  async revoke(value){if(value)await store.delete('session:'+value);}
+ };
+}

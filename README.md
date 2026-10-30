@@ -14,7 +14,13 @@ npm ci --ignore-scripts
 npm start
 ```
 
-Use that folder as the deployment root or Docker build context. It needs a Node backend and its own HTTPS origin. The existing Proof Protocol deployment continues to use the root app. See the companion README for RPC coverage limits and server settings.
+Use that folder as the deployment root or Docker build context. The root Vercel deployment serves Proof Protocol at `/` and Proof Bundles at `/bundles/`, with a Node API function. `vercel.json` selects a build that does not require a Sites hosting manifest. For a standalone bundle service, configure its own HTTPS origin. See the companion README for RPC coverage limits and server settings. Pro on Vercel also needs shared Redis REST storage so verification and exports survive cold starts.
+
+## Vercel
+
+Connect this repository with its root directory set to the repository root. The included `vercel.json` selects `node scripts/build-vercel.mjs`, the `vercel-output` static directory and one catch-all Node API function. No `.openai/hosting.json` is needed for Vercel. Both apps use the same origin; API keys stay in server environment settings.
+
+Basic scans work without a wallet or holder policy. For Pro, configure `HOLDER_TOKEN_MINT`, `HOLDER_MIN_TOKENS`, `STATE_REDIS_REST_URL` and `STATE_REDIS_REST_TOKEN` in Vercel's server environment. `SOLANA_RPC_URL` is recommended for reliable historical access. No services or subscriptions are purchased automatically.
 
 ## Start locally
 
